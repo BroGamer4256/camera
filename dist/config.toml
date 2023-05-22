@@ -1,0 +1,4 @@
+enabled = true
+dll = ["camera.dll"]
+
+author = "samyuu(nop), brogamer"
