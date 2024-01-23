@@ -83,7 +83,6 @@ PointFromAngle (f32 degrees, f32 distance) {
 }
 
 FUNCTION_PTR (Camera *, GetCamera, readOffset ((u64)sigGetCamera () + 1));
-auto camera            = GetCamera ();
 bool cameraOverwrite   = false;
 bool f11Held           = false;
 f32 verticalRotation   = 0.0f;
@@ -92,24 +91,36 @@ f32 horizontalRotation = 0.0f;
 POINT mouseCurrent;
 POINT mousePrevious;
 
-HOOK (void, SetCameraPosition, sigSetCameraPosition (), Camera *cam, Vec3 pos) {
+extern "C" {
+HOOK (void, SetCameraPosition, sigSetCameraPosition (), Camera *cam, Vec3 *pos);
+void
+realSetCameraPosition (Camera *cam, Vec3 *pos) {
 	if (!cameraOverwrite) originalSetCameraPosition (cam, pos);
 }
 
-HOOK (void, SetCameraFocus, sigSetCameraFocus (), Camera *camera, Vec3 focus) {
-	if (!cameraOverwrite) originalSetCameraFocus (camera, focus);
+HOOK (void, SetCameraFocus, sigSetCameraFocus (), Camera *cam, Vec3 *focus);
+void
+realSetCameraFocus (Camera *cam, Vec3 *focus) {
+	if (!cameraOverwrite) originalSetCameraFocus (cam, focus);
 }
 
-HOOK (void, SetCameraRotation, sigSetCameraRotation (), Camera *camera, Vec3 a2) {
-	if (!cameraOverwrite) originalSetCameraRotation (camera, a2);
+HOOK (void, SetCameraRotation, sigSetCameraRotation (), Camera *cam, Vec3 *a2);
+void
+realSetCameraRotation (Camera *cam, Vec3 *a2) {
+	if (!cameraOverwrite) originalSetCameraRotation (cam, a2);
 }
 
-HOOK (void, SetCameraHorizontalFov, sigSetCameraHorizontalFov (), Camera *camera, f32 fov) {
-	if (!cameraOverwrite) originalSetCameraHorizontalFov (camera, fov);
+HOOK (void, SetCameraHorizontalFov, sigSetCameraHorizontalFov (), Camera *cam, f32 fov);
+void
+realSetCameraHorizontalFov (Camera *cam, f32 fov) {
+	if (!cameraOverwrite) originalSetCameraHorizontalFov (cam, fov);
 }
 
-HOOK (void, SetCameraVerticalFov, sigSetCameraVerticalFov (), Camera *camera, f32 fov) {
-	if (!cameraOverwrite) originalSetCameraVerticalFov (camera, fov);
+HOOK (void, SetCameraVerticalFov, sigSetCameraVerticalFov (), Camera *cam, f32 fov);
+void
+realSetCameraVerticalFov (Camera *cam, f32 fov) {
+	if (!cameraOverwrite) originalSetCameraVerticalFov (cam, fov);
+}
 }
 
 HOOK (bool, GetButtonPressed, sigGetButtonPressed (), void *inputState, int button, void *checkFunc) {
@@ -117,10 +128,10 @@ HOOK (bool, GetButtonPressed, sigGetButtonPressed (), void *inputState, int butt
 	return false;
 }
 
-HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov) {
+HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov, f32 a3) {
 	mousePrevious = mouseCurrent;
 	GetCursorPos (&mouseCurrent);
-	if (GetAsyncKeyState (VK_F11) & 0x8000 && !f11Held && camera) {
+	if (GetAsyncKeyState (VK_F11) & 0x8000 && !f11Held) {
 		cameraOverwrite = !cameraOverwrite;
 		f11Held         = true;
 		RECT windowRect;
@@ -130,11 +141,13 @@ HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov) {
 		int centerY        = windowRect.top + (windowRect.bottom - windowRect.top) / 2;
 		mouseCurrent.x     = centerX;
 		mouseCurrent.y     = centerY;
+		mousePrevious      = mouseCurrent;
 		verticalRotation   = 0.0f;
 		horizontalRotation = 0.0f;
 	}
 	if (!(GetAsyncKeyState (VK_F11) & 0x8000) && f11Held) f11Held = false;
-	if (!cameraOverwrite) return originalUpdateCamera (a1, verticalFov);
+	if (!cameraOverwrite) return originalUpdateCamera (a1, verticalFov, a3);
+	auto camera = GetCamera ();
 
 	bool forward  = GetAsyncKeyState ('W') & 0x8000;
 	bool backward = GetAsyncKeyState ('S') & 0x8000;
@@ -191,7 +204,7 @@ HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov) {
 
 	camera->focus.y = camera->position.y + PointFromAngle (horizontalRotation, 5.0f).x;
 
-	return originalUpdateCamera (a1, verticalFov);
+	return originalUpdateCamera (a1, verticalFov, a3);
 }
 
 extern "C" {

@@ -1,4 +1,4 @@
-project('camera', 'c', 'cpp', version: '1.0.0')
+project('camera', 'c', 'cpp', 'nasm', version: '1.0.0')
 warning_level = 3
 debug = true
 optimization = 3
@@ -36,6 +36,7 @@ library(
 	],
 	sources : [
 		'src/mod.cpp',
+		'src/mod.asm',
 		'src/SigScan.cpp',
 	],
 	name_prefix: ''
