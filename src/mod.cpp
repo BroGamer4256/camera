@@ -165,7 +165,7 @@ HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov, f32 a
 
 	bool fast = GetAsyncKeyState (VK_SHIFT) & 0x8000;
 
-	f32 speed = fast ? 0.05f : 0.01f;
+	f32 speed = fast ? 0.5f : 0.1f;
 
 	if (forward || backward) camera->position += PointFromAngle (verticalRotation + (forward ? +0.0f : -180.0f), speed);
 
@@ -173,7 +173,7 @@ HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov, f32 a
 
 	if (up || down) camera->position.y += speed * (up ? +0.25f : -0.25f);
 
-	if (clockwise || counterClockwise) camera->rotation += speed * (clockwise ? -1.0f : +1.0f);
+	if (clockwise || counterClockwise) camera->rotation += speed / 5.0 * (clockwise ? -1.0f : +1.0f);
 
 	if (zoomIn || zoomOut) {
 		camera->horizontalFov += speed * (zoomIn ? -1.0f : +1.0f);
