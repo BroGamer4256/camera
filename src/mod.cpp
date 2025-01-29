@@ -1,13 +1,11 @@
 #include "SigScan.h"
 
-SIG_SCAN (sigSetCameraPosition, 0x1404CCD10, "\xF2\x0F\x10\x02\xF2\x0F\x11\x01\x8B\x42\x08\x89\x41\x08\xC3", "xxxxxxxxxxxxxxx");
-SIG_SCAN (sigSetCameraFocus, 0x1404CCD30, "\xF2\x0F\x10\x02\xF2\x0F\x11\x41\x0C", "xxxxxxxxx");
-SIG_SCAN (sigSetCameraRotation, 0x1404CCD20, "\xF2\x0F\x10\x02\xF2\x0F\x11\x41\x18", "xxxxxxxxx");
-SIG_SCAN (sigSetCameraHorizontalFov, 0x1404CCD70, "\xF3\x0F\x11\x49\x24\xC3", "xxxxxx");
-SIG_SCAN (sigSetCameraVerticalFov, 0x1404CCD50, "\xF3\x0F\x11\x49\x28\xC3", "xxxxxx");
+SIG_SCAN (sigSetCameraData, 0x1402FAE00, "\x48\x83\xEC\x28\x4C\x8B\xC1\x48\x83\xC1\x04\xE8\x50\x09\x00\x00\x49\x8D\x48\x10\xE8\x67\x09\x00\x00\xF3\x41\x0F\x10\x40\x1C\xF3\x0F\x59\x05\x95\x26\x9D\x00",
+          "xxxxxxxxxxxx????xxxxx????xxxxxxxxxx????");
 SIG_SCAN (sigGetButtonPressed, 0x1402AB1A0, "\x40\x55\x41\x56\x48\x83\xEC\x38", "xxxxxxxx");
-SIG_SCAN (sigUpdateCamera, 0x1402FA9F0, "\x48\x8B\xC4\x55\x48\x8D\x68\xE8", "xxxxxxxx");
-SIG_SCAN (sigGetCamera, 0x1404D7C48, "\xE8\xCC\xCC\xCC\xCC\x48\x8D\x1D\xCC\xCC\xCC\xCC\x48\x8B\xCB\xBA\x03\x00\x00\x00", "x????xxx????xxxxxxxx");
+SIG_SCAN (sigUpdateCamera, 0x1402FB0F0,
+          "\x48\x81\xEC\x98\x00\x00\x00\x48\x8B\x05\x6A\x12\xAA\x00\x48\x33\xC4\x48\x89\x84\x24\x80\x00\x00\x00\xE8\x02\x03\x00\x00\xE8\x8D\x12\x00\x00\x0F\xB6\x05\xA0\x06\x93\x0C",
+          "xxxxxxxxxx????xxxxxxxxxxxx????x????xxx????");
 
 #pragma pack(8)
 struct Vec2 {
@@ -48,15 +46,63 @@ struct Vec3 {
 	}
 };
 
-struct Camera {
-	Vec3 position;
-	Vec3 focus;
-	f32 rotation;
-	f32 unk_1C;
-	f32 unk_20;
-	f32 horizontalFov;
-	f32 verticalFov;
-	f32 depth;
+struct Vec4 {
+	f32 x;
+	f32 y;
+	f32 z;
+	f32 w;
+
+	Vec4 () {
+		this->x = 0;
+		this->y = 0;
+		this->z = 0;
+		this->w = 0;
+	}
+
+	Vec4 (f32 x, f32 y, f32 z, f32 w) {
+		this->x = x;
+		this->y = y;
+		this->z = z;
+		this->w = w;
+	}
+};
+
+struct CameraData {
+	Vec3 viewPoint;
+	Vec3 interest;
+	f32 roll;
+	f32 fov;
+	f32 aetFov;
+	f64 aspect;
+	f32 minDistance;
+	f32 maxDistance;
+	f32 projLeftOffset;
+	f32 projRightOffset;
+	f32 projBottomOffset;
+	f32 projTopOffset;
+	u8 useUp;
+	Vec3 up;
+	u8 ignoreFov;
+	u8 ignoreMinDist;
+	Vec4 viewMatrix[4];
+	Vec4 invViewMatrix[4];
+	Vec4 projectionMatrix[4];
+	Vec4 viewProjectionMatrix[4];
+	Vec4 viewProjectionAet2dMatrix[4];
+	Vec4 viewProjectionAet3dMatrix[4];
+	f32 fovCorrectHeight;
+	f32 aetDepth;
+	Vec3 unk_1E4;
+	Vec3 unk_1F0;
+	Vec3 unk_1FC;
+	Vec3 unk_208;
+	f32 distance;
+	Vec3 rotation;
+	f32 fovHorizontalRad;
+	u8 unk_228;
+	u8 fastChange;
+	u8 fastChangeHist0;
+	u8 fastChangeHist1;
 };
 
 #ifndef M_PI
@@ -82,7 +128,6 @@ PointFromAngle (f32 degrees, f32 distance) {
 	return Vec2 (-1 * std::cos (radians) * distance, -1 * std::sin (radians) * distance);
 }
 
-FUNCTION_PTR (Camera *, GetCamera, readOffset ((u64)sigGetCamera () + 1));
 bool cameraOverwrite   = false;
 bool f11Held           = false;
 f32 verticalRotation   = 0.0f;
@@ -92,34 +137,10 @@ POINT mouseCurrent;
 POINT mousePrevious;
 
 extern "C" {
-HOOK (void, SetCameraPosition, sigSetCameraPosition (), Camera *cam, Vec3 *pos);
+HOOK (void, SetCameraData, sigSetCameraData (), CameraData *, Vec3 *);
 void
-realSetCameraPosition (Camera *cam, Vec3 *pos) {
-	if (!cameraOverwrite) originalSetCameraPosition (cam, pos);
-}
-
-HOOK (void, SetCameraFocus, sigSetCameraFocus (), Camera *cam, Vec3 *focus);
-void
-realSetCameraFocus (Camera *cam, Vec3 *focus) {
-	if (!cameraOverwrite) originalSetCameraFocus (cam, focus);
-}
-
-HOOK (void, SetCameraRotation, sigSetCameraRotation (), Camera *cam, Vec3 *a2);
-void
-realSetCameraRotation (Camera *cam, Vec3 *a2) {
-	if (!cameraOverwrite) originalSetCameraRotation (cam, a2);
-}
-
-HOOK (void, SetCameraHorizontalFov, sigSetCameraHorizontalFov (), Camera *cam, f32 fov);
-void
-realSetCameraHorizontalFov (Camera *cam, f32 fov) {
-	if (!cameraOverwrite) originalSetCameraHorizontalFov (cam, fov);
-}
-
-HOOK (void, SetCameraVerticalFov, sigSetCameraVerticalFov (), Camera *cam, f32 fov);
-void
-realSetCameraVerticalFov (Camera *cam, f32 fov) {
-	if (!cameraOverwrite) originalSetCameraVerticalFov (cam, fov);
+realSetCameraData (CameraData *cam, Vec3 *pos) {
+	if (!cameraOverwrite) originalSetCameraData (cam, pos);
 }
 }
 
@@ -128,7 +149,7 @@ HOOK (bool, GetButtonPressed, sigGetButtonPressed (), void *inputState, int butt
 	return false;
 }
 
-HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov, f32 a3) {
+HOOK (void *, UpdateCamera, sigUpdateCamera ()) {
 	mousePrevious = mouseCurrent;
 	GetCursorPos (&mouseCurrent);
 	if (GetAsyncKeyState (VK_F11) & 0x8000 && !f11Held) {
@@ -146,8 +167,8 @@ HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov, f32 a
 		horizontalRotation = 0.0f;
 	}
 	if (!(GetAsyncKeyState (VK_F11) & 0x8000) && f11Held) f11Held = false;
-	if (!cameraOverwrite) return originalUpdateCamera (a1, verticalFov, a3);
-	auto camera = GetCamera ();
+	if (!cameraOverwrite) return originalUpdateCamera ();
+	auto camera = (CameraData *)(readOffset ((u64)whereUpdateCamera + 0x26) - 0x22A);
 
 	bool forward  = GetAsyncKeyState ('W') & 0x8000;
 	bool backward = GetAsyncKeyState ('S') & 0x8000;
@@ -167,17 +188,17 @@ HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov, f32 a
 
 	f32 speed = fast ? 0.5f : 0.1f;
 
-	if (forward || backward) camera->position += PointFromAngle (verticalRotation + (forward ? +0.0f : -180.0f), speed);
+	if (forward || backward) camera->viewPoint += PointFromAngle (verticalRotation + (forward ? +0.0f : -180.0f), speed);
 
-	if (left || right) camera->position += PointFromAngle (verticalRotation + (right ? +90.0f : -90.0f), speed);
+	if (left || right) camera->viewPoint += PointFromAngle (verticalRotation + (right ? +90.0f : -90.0f), speed);
 
-	if (up || down) camera->position.y += speed * (up ? +0.25f : -0.25f);
+	if (up || down) camera->viewPoint.y += speed * (up ? +0.25f : -0.25f);
 
-	if (clockwise || counterClockwise) camera->rotation += speed / 5.0 * (clockwise ? -1.0f : +1.0f);
+	if (clockwise || counterClockwise) camera->rotation.x += speed / 5.0 * (clockwise ? -1.0f : +1.0f);
 
 	if (zoomIn || zoomOut) {
-		camera->horizontalFov += speed * (zoomIn ? -1.0f : +1.0f);
-		camera->horizontalFov = std::clamp (camera->horizontalFov, +1.0f, +200.0f);
+		camera->fov += speed * (zoomIn ? -1.0f : +1.0f);
+		camera->fov = std::clamp (camera->fov, +1.0f, +200.0f);
 	}
 
 	RECT windowRect;
@@ -198,22 +219,19 @@ HOOK (void *, UpdateCamera, sigUpdateCamera (), void *a1, f32 verticalFov, f32 a
 
 	horizontalRotation = std::clamp (horizontalRotation, -75.0f, +75.0f);
 
-	Vec2 focus      = PointFromAngle (verticalRotation, 1.0f);
-	camera->focus.x = camera->position.x + focus.x;
-	camera->focus.z = camera->position.z + focus.y;
+	Vec2 interest      = PointFromAngle (verticalRotation, 1.0f);
+	camera->interest.x = camera->viewPoint.x + interest.x;
+	camera->interest.z = camera->viewPoint.z + interest.y;
 
-	camera->focus.y = camera->position.y + PointFromAngle (horizontalRotation, 5.0f).x;
+	camera->interest.y = camera->viewPoint.y + PointFromAngle (horizontalRotation, 5.0f).x;
 
-	return originalUpdateCamera (a1, verticalFov, a3);
+	return originalUpdateCamera ();
 }
 
 extern "C" {
-__declspec (dllexport) void init () {
-	INSTALL_HOOK (SetCameraPosition);
-	INSTALL_HOOK (SetCameraFocus);
-	INSTALL_HOOK (SetCameraRotation);
-	INSTALL_HOOK (SetCameraHorizontalFov);
-	INSTALL_HOOK (SetCameraVerticalFov);
+__declspec (dllexport) void
+init () {
+	INSTALL_HOOK (SetCameraData);
 	INSTALL_HOOK (GetButtonPressed);
 	INSTALL_HOOK (UpdateCamera);
 }

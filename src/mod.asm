@@ -32,48 +32,12 @@
 	pop rax
 %endmacro
 
-extern implOfSetCameraPosition
-extern realSetCameraPosition
-
-extern implOfSetCameraFocus
-extern realSetCameraFocus
-
-extern implOfSetCameraRotation
-extern realSetCameraRotation
-
-extern implOfSetCameraHorizontalFov
-extern realSetCameraHorizontalFov
-
-extern implOfSetCameraVerticalFov
-extern realSetCameraVerticalFov
+extern implOfSetCameraData
+extern realSetCameraData
 
 section .text
-implOfSetCameraPosition:
+implOfSetCameraData:
 	pushaq
-	call realSetCameraPosition
-	popaq
-	ret
-
-implOfSetCameraFocus:
-	pushaq
-	call realSetCameraFocus
-	popaq
-	ret
-
-implOfSetCameraRotation:
-	pushaq
-	call realSetCameraRotation
-	popaq
-	ret
-
-implOfSetCameraHorizontalFov:
-	pushaq
-	call realSetCameraHorizontalFov
-	popaq
-	ret
-
-implOfSetCameraVerticalFov:
-	pushaq
-	call realSetCameraVerticalFov
+	call realSetCameraData
 	popaq
 	ret
